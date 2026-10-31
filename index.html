@@ -491,6 +491,22 @@
     let t;
     window.addEventListener('resize', () => { clearTimeout(t); t = setTimeout(renderChart, 150); });
   })();
+
+  // アクセス数の集計（GoatCounter。夜渡りピッカー・遺物一覧と同じサイトに /nightreign-stats/ として送る）
+  // ローカル確認では送らない。参照元はクエリを落とす
+  (() => {
+    if (location.protocol === 'file:' || /(localhost$|^127\.|^\[::1\]$)/.test(location.hostname)) return;
+    const q = {
+      p: location.pathname,
+      t: document.title,
+      r: document.referrer.replace(/[?#].*$/, ''),
+      s: screen.width,
+      b: navigator.webdriver ? 153 : 0,
+      rnd: Math.random().toString(36).slice(2),
+    };
+    const url = 'https://esusan.goatcounter.com/count?' + new URLSearchParams(q);
+    if (!(navigator.sendBeacon && navigator.sendBeacon(url))) new Image().src = url;
+  })();
 </script>
 </body>
 </html>
