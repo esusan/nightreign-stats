@@ -1,0 +1,496 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ナイトレイン戦績</title>
+<style>
+  /* 色は配信画面（project/obs_overlay/public/theme.css）の狼の配色。シアン＝勝ち／赤＝負け／常夜はアイコンを紫に染める */
+  @font-face { font-family: "Teko"; font-weight: 600; font-display: swap; src: url("fonts/Teko-600.woff2") format("woff2"); }
+  :root {
+    --bg: rgb(6, 6, 8);
+    --panel: rgb(16, 17, 20);
+    --line: rgba(150, 160, 175, .25);
+    --sub: rgba(215, 220, 230, .6);
+    --text: #fff;
+    --cyan: #3ee8f0;
+    --win: #3ee8f0;
+    --lose: #ff4f7a;
+  }
+  body {
+    margin: 0;
+    padding: 16px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Yu Gothic UI", "Meiryo", "Hiragino Sans", sans-serif;
+    font-size: 14px;
+  }
+  .wrap { max-width: 1000px; margin: 0 auto; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .updated { color: var(--sub); font-size: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--cyan); margin-bottom: 12px; }
+  h2 { font-size: 15px; margin: 28px 0 10px; color: var(--cyan); font-weight: 600; letter-spacing: .05em; }
+  .bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; margin-top: 12px; }
+  .tile { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+  .tile .v { font: 600 38px/.9 "Teko", sans-serif; padding-top: 4px; }
+  .tile .k { color: var(--sub); font-size: 12px; }
+  select, button {
+    font: inherit;
+    color: inherit;
+    background: rgba(150, 160, 175, .1);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 5px 8px;
+  }
+  select option { background: var(--panel); }
+  button { cursor: pointer; }
+  button:hover { background: rgba(150, 160, 175, .2); }
+  .scroll { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th, td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
+  th { color: var(--sub); font-weight: 600; font-size: 12px; }
+  th.group { text-align: center; border-bottom-color: var(--sub); }
+  td.n, th.n { text-align: right; }
+  td.sep, th.sep { border-left: 1px solid var(--line); }
+  .ic { position: relative; display: inline-block; width: 24px; height: 24px; vertical-align: middle; margin-right: 6px; border-radius: 50%; overflow: hidden; }
+  .ic img { display: block; width: 100%; height: 100%; object-fit: cover; }
+  .chara + .chara { margin-left: 12px; }
+  /* 常夜：配信終了画面（matching.html の .card.ever）と同じく、明るさは元の絵のまま色だけ紫に置きかえる */
+  .ic.ever::before { content: ""; position: absolute; inset: 0; z-index: 1; background: #30115c; mix-blend-mode: color; pointer-events: none; }
+  .win { color: var(--win); }
+  .lose { color: var(--lose); }
+  .muted { color: var(--sub); }
+  /* 配信回の桁数が違っても再生ボタンの位置をそろえる */
+  .sn { display: inline-block; min-width: 2.6em; }
+  a.play {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 26px; height: 20px; margin-left: 8px; vertical-align: middle;
+    text-decoration: none; background: #9e3a3a; border-radius: 5px;
+  }
+  /* 白い三角はCSSで描く（文字の▶はスマホで絵文字になることがあるため） */
+  a.play::before {
+    content: ""; margin-left: 2px;
+    border-style: solid; border-width: 5px 0 5px 8px; border-color: transparent transparent transparent #f0e8e8;
+  }
+  a.play:hover { background: #b84444; }
+  .tag { display: inline-block; font-size: 11px; line-height: 1; padding: 3px 5px; border-radius: 4px; margin-left: 6px; vertical-align: middle; border: 1px solid; }
+  .tag.d5 { color: var(--sub); }
+  tr.lose-row td { background: color-mix(in srgb, var(--lose) 8%, transparent); }
+  /* 試合一覧・配信ごと（.compact）は列が短いので横いっぱいに広げず中身の幅に詰め、1行おきに縞をつける */
+  table.compact, table.fit { width: auto; }
+  table.compact td, table.compact th, table.fit td, table.fit th { padding-left: 12px; padding-right: 12px; }
+  table.compact tbody tr:nth-child(even) td { background: rgba(150, 160, 175, .06); }
+  table.compact tbody tr.lose-row td { background: color-mix(in srgb, var(--lose) 8%, transparent); }
+  /* 見出しはスクロールしても上に残す。横スクロールの枠があると画面に対して固定されないので、PCでは枠を外す */
+  table.compact thead th { position: sticky; top: 0; z-index: 2; background: var(--bg); box-shadow: inset 0 -1px 0 var(--line); }
+  .match-wrap { overflow: visible; }
+  /* ページ内ナビ（表の見出しの固定とぶつかるので、ナビ自体は固定しない） */
+  html { scroll-behavior: smooth; }
+  h2[id] { scroll-margin-top: 12px; }
+  .nav { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+  /* ボタンだと分かるように：塗り＋水色の枠＋下向きの矢印。押したときに少し沈む */
+  .nav a {
+    display: inline-flex; align-items: center; gap: 6px;
+    color: var(--text); text-decoration: none; font-size: 13px; font-weight: 600;
+    padding: 7px 12px; border-radius: 6px;
+    background: color-mix(in srgb, var(--cyan) 12%, var(--panel));
+    border: 1px solid color-mix(in srgb, var(--cyan) 45%, transparent);
+    box-shadow: 0 2px 0 rgba(0, 0, 0, .5);
+    transition: background .15s, border-color .15s;
+  }
+  .nav a::after {
+    content: ""; width: 6px; height: 6px; margin-top: -3px;
+    border-right: 2px solid var(--cyan); border-bottom: 2px solid var(--cyan); transform: rotate(45deg);
+  }
+  .nav a:hover { background: color-mix(in srgb, var(--cyan) 22%, var(--panel)); border-color: var(--cyan); }
+  .nav a:active { transform: translateY(2px); box-shadow: none; }
+  /* 絞り込みの区画：上との境目に線を引く */
+  .note.below { margin: 8px 0 0; }
+  /* 絞り込みの区画のあとは、区画の外だと分かるように上にも線を引く */
+  h2.after-filter { margin-top: 36px; padding-top: 16px; border-top: 1px solid var(--cyan); }
+  .filter { margin-top: 36px; padding-top: 16px; border-top: 1px solid var(--cyan); scroll-margin-top: 12px; }
+  .tiles[hidden] { display: none; }
+  /* キャラの絞り込みボタン（遺物一覧ページの .character-btn に合わせた丸ボタン） */
+  .char-filter { display: flex; flex-wrap: wrap; gap: 8px; }
+  .char-btn {
+    display: flex; align-items: center; gap: 6px;
+    padding: 4px 12px; border-radius: 999px; border: 2px solid var(--line); background: var(--panel);
+    font-size: 12px;
+  }
+  .char-btn img { width: 26px; height: 26px; border-radius: 50%; object-fit: cover; }
+  .char-btn:hover { border-color: var(--cyan); background: var(--panel); }
+  .char-btn[aria-pressed="true"] { border-color: var(--cyan); background: color-mix(in srgb, var(--cyan) 15%, var(--panel)); }
+  .note { color: var(--sub); font-size: 12px; margin: -4px 0 8px; }
+  /* 連勝の推移グラフ */
+  #chart { position: relative; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; touch-action: pan-y; }
+  #chart svg { display: block; width: 100%; height: 220px; }
+  #chart .grid { stroke: var(--line); stroke-width: 1; }
+  #chart .axis { fill: var(--sub); font-size: 11px; }
+  #chart .line { fill: none; stroke: var(--cyan); stroke-width: 2; stroke-linejoin: round; }
+  #chart .best { fill: var(--cyan); stroke: var(--panel); stroke-width: 2; }
+  #chart .best-label { fill: var(--text); font-size: 12px; font-weight: 600; }
+  #chart .cross { stroke: var(--sub); stroke-width: 1; }
+  #chart .dot { fill: var(--cyan); stroke: var(--panel); stroke-width: 2; }
+  #chart .tip {
+    position: absolute; top: 8px; pointer-events: none; white-space: nowrap;
+    background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; font-size: 12px;
+  }
+  /* スマホは表が画面幅に収まらないので、枠の中で縦横にスクロールさせて、その中で見出しを固定する */
+  @media (max-width: 600px) {
+    .match-wrap { overflow: auto; max-height: 80vh; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>ナイトレイン戦績（深度4野良）</h1>
+  <div class="updated" id="updated"></div>
+  <nav class="nav" aria-label="ページ内の移動">
+    <a href="#sec-chart">連勝の推移</a>
+    <a href="#sec-runs">連勝の記録</a>
+    <a href="#sec-char">キャラ別</a>
+    <a href="#sec-filter">ボス別・試合一覧</a>
+    <a href="#sec-streams">配信ごと</a>
+  </nav>
+  <div class="tiles" id="tiles"></div>
+
+  <h2 id="sec-chart">連勝の推移</h2>
+  <div id="chart"></div>
+
+  <h2 id="sec-runs">連勝の記録</h2>
+  <div class="scroll"><table id="run-table" class="fit"></table></div>
+
+  <h2 id="sec-char">キャラ別</h2>
+  <div class="scroll"><table id="char-table" class="fit"></table></div>
+  <div class="note below">※最高連勝は、そのキャラで続けて勝った数（ほかのキャラの試合ははさまない数え方）</div>
+
+  <!-- ここから試合一覧まではキャラの絞り込みが効く区画 -->
+  <section class="filter" id="sec-filter">
+    <div class="note">キャラでボス別・試合一覧を絞り込む</div>
+    <div class="char-filter" id="filter-char" role="group" aria-label="キャラで絞り込み"></div>
+    <div class="tiles" id="filter-tiles"></div>
+    <div class="note below">※最高連勝は、そのキャラで続けて勝った数（ほかのキャラの試合ははさまない数え方）</div>
+
+    <h2 id="sec-boss">ボス別</h2>
+    <div class="scroll"><table id="boss-table" class="fit"></table></div>
+
+    <h2 id="sec-matches">試合一覧</h2>
+    <div class="scroll match-wrap"><table id="match-table" class="compact"></table></div>
+  </section>
+
+  <h2 id="sec-streams" class="after-filter">配信ごと</h2>
+  <div class="scroll match-wrap"><table id="stream-table" class="compact"></table></div>
+</div>
+<script>
+  const $ = (id) => document.getElementById(id);
+  let data = null;
+
+  const bossOf = (id) => data.bosses.find((b) => b.id === id);
+  const charOf = (id) => data.characters.find((c) => c.id === id);
+  const pct = (a, b) => (b ? `${Math.round((a / b) * 100)}%` : '-');
+
+  // 配信回：アーカイブのURLがあれば横に再生ボタンを付ける
+  function streamCell(n, cls = '') {
+    if (n == null || typeof n !== 'number') return el('td', { class: cls, text: n ?? '-' });
+    const url = data.streams?.[n];
+    return el('td', { class: cls }, [
+      el('span', { class: 'sn', text: `#${n}` }),
+      url ? el('a', { class: 'play', href: url, target: '_blank', rel: 'noopener', title: `#${n} のアーカイブを開く`, 'aria-label': `#${n} のアーカイブを開く` }) : null,
+    ]);
+  }
+
+  function el(tag, attrs = {}, children = []) {
+    const e = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs)) {
+      if (k === 'class') e.className = v;
+      else if (k === 'text') e.textContent = v;
+      else e.setAttribute(k, v);
+    }
+    for (const c of [].concat(children)) if (c != null) e.append(c);
+    return e;
+  }
+
+  function bossCell(m) {
+    const b = bossOf(m.boss);
+    if (!b) return el('span', { class: 'muted', text: '-' });
+    return el('span', {}, [
+      el('span', { class: 'ic' + (m.everdark ? ' ever' : '') }, el('img', { src: b.icon, alt: '' })),
+      b.name,
+      m.depth5 ? el('span', { class: 'tag d5', text: '深度5' }) : null,
+    ]);
+  }
+
+  function charCell(id) {
+    const c = charOf(id);
+    if (!c) return el('span', { text: id });
+    return el('span', { class: 'chara' }, [
+      el('span', { class: 'ic' }, el('img', { src: c.icon, alt: '' })),
+      c.name,
+    ]);
+  }
+
+  let selChar = ''; // 絞り込み中のキャラID（空ならすべて）
+  function filtered() {
+    return selChar ? data.matches.filter((m) => m.character === selChar) : data.matches;
+  }
+
+  const tileEls = (tiles) => tiles.map(([k, v]) => el('div', { class: 'tile' }, [
+    el('div', { class: 'v', text: String(v) }), el('div', { class: 'k', text: k }),
+  ]));
+
+  // 上のタイルは絞り込みに関係なく全試合の数字
+  function renderTiles() {
+    const all = data.matches;
+    const list = all;
+    const wins = list.filter((m) => m.result === 'win').length;
+    const recent = list.slice(-20);
+    const tiles = [
+      ['試合', list.length],
+      ['勝ち', wins],
+      ['負け', list.length - wins],
+      ['勝率', pct(wins, list.length)],
+      [`直近${recent.length}試合の勝率`, pct(recent.filter((m) => m.result === 'win').length, recent.length)],
+      ['今の連勝', all.length ? all[all.length - 1].streak : 0],
+      ['最高連勝', data.best],
+    ];
+    $('tiles').replaceChildren(...tileEls(tiles));
+  }
+
+  // 絞り込み中のキャラの試合・勝ち・負け・勝率・最高連勝（「すべて」なら全試合）
+  function renderFilterTiles(list) {
+    const box = $('filter-tiles');
+    const wins = list.filter((m) => m.result === 'win').length;
+    // 最高連勝はキャラ別の表と同じ数え方（そのキャラの試合だけを順に見て続けて勝った数）
+    let run = 0, best = 0;
+    for (const m of list) { run = m.result === 'win' ? run + 1 : 0; best = Math.max(best, run); }
+    box.replaceChildren(...tileEls([
+      ['試合', list.length],
+      ['勝ち', wins],
+      ['負け', list.length - wins],
+      ['勝率', pct(wins, list.length)],
+      ['最高連勝', best],
+    ]));
+  }
+
+  function renderBoss(list) {
+    const loses = (ms) => ms.filter((m) => m.result === 'lose').length;
+    const rows = data.bosses.filter((b) => b.id !== 'unknown').map((b) => {
+      const ms = list.filter((m) => m.boss === b.id);
+      const normal = ms.filter((m) => !m.everdark);
+      const ever = ms.filter((m) => m.everdark);
+      return { b, n: ms.length, normal, ever };
+    });
+    const total = rows.reduce((s, r) => s + r.n, 0);
+    const group = el('tr', {}, [
+      el('th', { colspan: 3 }),
+      el('th', { class: 'group sep', colspan: 3, text: '通常' }),
+      el('th', { class: 'group sep', colspan: 3, text: '常夜' }),
+    ]);
+    const head = el('tr', {}, ['ボス', '合計', '出現率', '出現', '負け', '負け率', '出現', '負け', '負け率'].map((t, i) =>
+      el('th', { class: (i ? 'n' : '') + (i === 3 || i === 6 ? ' sep' : ''), text: t })));
+    const cells = (ms, none) => {
+      if (none) return [0, 1, 2].map((i) => el('td', { class: 'n muted' + (i ? '' : ' sep'), text: '-' }));
+      const l = loses(ms);
+      return [
+        el('td', { class: 'n sep', text: ms.length }),
+        el('td', { class: 'n' + (l ? ' lose' : ''), text: l }),
+        el('td', { class: 'n', text: pct(l, ms.length) }),
+      ];
+    };
+    const body = rows.sort((a, b) => b.n - a.n).map((r) => el('tr', {}, [
+      el('td', {}, bossCell({ boss: r.b.id })),
+      el('td', { class: 'n', text: r.n }),
+      el('td', { class: 'n', text: pct(r.n, total) }),
+      ...cells(r.normal),
+      ...cells(r.ever, r.b.noEverdark),
+    ]));
+    $('boss-table').replaceChildren(el('thead', {}, [group, head]), el('tbody', {}, body));
+  }
+
+  function renderStreams(list) {
+    const by = new Map();
+    for (const m of list) {
+      const k = m.stream ?? '未設定';
+      if (!by.has(k)) by.set(k, []);
+      by.get(k).push(m);
+    }
+    const keys = [...by.keys()].sort((a, b) => (b === '未設定' ? -1 : a === '未設定' ? 1 : b - a));
+    const head = el('tr', {}, ['配信', '試合', '勝ち', '負け', '連勝の推移', 'キャラ'].map((t, i) =>
+      el('th', { class: i && i < 5 ? 'n' : '', text: t })));
+    const body = keys.map((k) => {
+      const ms = by.get(k);
+      const wins = ms.filter((m) => m.result === 'win').length;
+      // 配信開始時の連勝：その配信の最初の試合の1つ前（全キャラ）の連勝
+      const i = data.matches.indexOf(ms[0]);
+      const start = i > 0 ? data.matches[i - 1].streak : 0;
+      const chars = [...new Set(ms.map((m) => m.character))].map(charCell);
+      return el('tr', {}, [
+        streamCell(k),
+        el('td', { class: 'n', text: ms.length }),
+        el('td', { class: 'n win', text: wins }),
+        el('td', { class: 'n' + (ms.length - wins ? ' lose' : ''), text: ms.length - wins }),
+        el('td', { class: 'n', text: `${start} → ${ms[ms.length - 1].streak}` }),
+        el('td', {}, chars),
+      ]);
+    });
+    $('stream-table').replaceChildren(el('thead', {}, head), el('tbody', {}, body));
+  }
+
+  function renderMatches(list) {
+    const head = el('tr', {}, ['No', '連勝', 'ボス', 'キャラ', '結果', '配信'].map((t, i) =>
+      el('th', { class: i <= 1 ? 'n' : '', text: t })));
+    const rows = list.slice().reverse().map((m) => el('tr', { class: m.result === 'lose' ? 'lose-row' : '' }, [
+      el('td', { class: 'n muted', text: data.matches.indexOf(m) + 1 }),
+      el('td', { class: 'n', text: m.streak }),
+      el('td', {}, bossCell(m)),
+      el('td', {}, charCell(m.character)),
+      el('td', { class: m.result, text: m.result === 'win' ? 'WIN' : 'LOSE' }),
+      streamCell(m.stream),
+    ]));
+    $('match-table').replaceChildren(el('thead', {}, head), el('tbody', {}, rows));
+  }
+
+  // 連勝の記録：縛りごとの区間（data.series）で、その配信回の範囲の最高連勝・試合・勝率を出す。新しい区間が上
+  function renderRuns() {
+    const head = el('tr', {}, ['縛り', '最高連勝', '配信', '試合', '勝率', 'キャラ', '再生リスト'].map((t, i) =>
+      el('th', { class: i === 1 || i === 3 || i === 4 ? 'n' : '', text: t })));
+    // to が null の区間は進行中（終わりの配信回が未定）。まだ試合がない区間は出さない
+    const inRange = (s) => data.matches.filter((m) => typeof m.stream === 'number' && m.stream >= s.from && (s.to == null || m.stream <= s.to));
+    const body = (data.series || []).slice().reverse().filter((s) => inRange(s).length).map((s) => {
+      const ms = inRange(s);
+      const wins = ms.filter((m) => m.result === 'win').length;
+      const best = ms.reduce((a, m) => Math.max(a, m.streak), 0);
+      // キャラは多く使った順
+      const count = new Map();
+      for (const m of ms) count.set(m.character, (count.get(m.character) || 0) + 1);
+      const chars = [...count.entries()].sort((a, b) => b[1] - a[1]).map(([c]) => charCell(c));
+      return el('tr', {}, [
+        el('td', { text: s.name }),
+        el('td', { class: 'n win', text: best }),
+        el('td', { text: s.to == null ? `#${s.from} 〜` : `#${s.from} 〜 #${s.to}` }),
+        el('td', { class: 'n', text: ms.length }),
+        el('td', { class: 'n', text: pct(wins, ms.length) }),
+        el('td', {}, chars),
+        el('td', {}, s.playlist ? el('a', { class: 'play', href: s.playlist, target: '_blank', rel: 'noopener', title: `${s.name} の再生リストを開く`, 'aria-label': `${s.name} の再生リストを開く` }) : null),
+      ]);
+    });
+    $('run-table').replaceChildren(el('thead', {}, head), el('tbody', {}, body));
+  }
+
+  function renderChars() {
+    const head = el('tr', {}, ['キャラ', '試合', '勝ち', '負け', '勝率', '最高連勝'].map((t, i) =>
+      el('th', { class: i ? 'n' : '', text: t })));
+    const rows = data.characters.map((c) => {
+      const ms = data.matches.filter((m) => m.character === c.id);
+      let run = 0, best = 0;
+      for (const m of ms) { run = m.result === 'win' ? run + 1 : 0; best = Math.max(best, run); }
+      const wins = ms.filter((m) => m.result === 'win').length;
+      return { c, n: ms.length, wins, best };
+    }).filter((r) => r.n).sort((a, b) => b.n - a.n);
+    const body = rows.map((r) => el('tr', {}, [
+      el('td', {}, charCell(r.c.id)),
+      el('td', { class: 'n', text: r.n }),
+      el('td', { class: 'n win', text: r.wins }),
+      el('td', { class: 'n' + (r.n - r.wins ? ' lose' : ''), text: r.n - r.wins }),
+      el('td', { class: 'n', text: pct(r.wins, r.n) }),
+      el('td', { class: 'n', text: r.best }),
+    ]));
+    $('char-table').replaceChildren(el('thead', {}, head), el('tbody', {}, body));
+  }
+
+  // 連勝の推移：横が試合の順番、縦が連勝数。ホバー（スマホはタップ）でその試合の中身を出す
+  function renderChart() {
+    const box = $('chart');
+    const ms = data.matches;
+    const n = ms.length;
+    if (!n) { box.replaceChildren(); return; }
+    const W = box.clientWidth || 600, H = 220;
+    const pad = { l: 34, r: 14, t: 18, b: 24 };
+    const top = Math.max(...ms.map((m) => m.streak));
+    const step = top > 60 ? 20 : 10;
+    const maxY = Math.max(step, Math.ceil(top / step) * step);
+    const x = (i) => pad.l + (n > 1 ? i / (n - 1) : 0) * (W - pad.l - pad.r);
+    const y = (v) => pad.t + (1 - v / maxY) * (H - pad.t - pad.b);
+    let s = '';
+    for (let v = 0; v <= maxY; v += step) {
+      s += `<line class="grid" x1="${pad.l}" x2="${W - pad.r}" y1="${y(v)}" y2="${y(v)}"/>`;
+      s += `<text class="axis" x="${pad.l - 6}" y="${y(v) + 4}" text-anchor="end">${v}</text>`;
+    }
+    const xStep = n > 400 ? 100 : 50;
+    for (let k = xStep; k <= n; k += xStep) {
+      s += `<text class="axis" x="${x(k - 1)}" y="${H - 6}" text-anchor="middle">No.${k}</text>`;
+    }
+    s += `<polyline class="line" points="${ms.map((m, i) => `${x(i).toFixed(1)},${y(m.streak).toFixed(1)}`).join(' ')}"/>`;
+    const bi = ms.findIndex((m) => m.streak === top);
+    const anchor = x(bi) > W - 80 ? 'end' : 'middle';
+    s += `<circle class="best" cx="${x(bi)}" cy="${y(top)}" r="4.5"/>`;
+    s += `<text class="best-label" x="${x(bi)}" y="${y(top) - 8}" text-anchor="${anchor}">最高 ${top}</text>`;
+    s += `<line class="cross" y1="${pad.t}" y2="${H - pad.b}" visibility="hidden"/><circle class="dot" r="4.5" visibility="hidden"/>`;
+    box.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="連勝の推移。最高 ${top} 連勝">${s}</svg>`;
+    const tip = el('div', { class: 'tip' });
+    tip.hidden = true;
+    box.append(tip);
+    const svg = box.querySelector('svg'), cross = svg.querySelector('.cross'), dot = svg.querySelector('.dot');
+    const show = (ev) => {
+      const r = svg.getBoundingClientRect();
+      const px = ((ev.clientX - r.left) / r.width) * W;
+      const i = Math.max(0, Math.min(n - 1, Math.round(((px - pad.l) / (W - pad.l - pad.r)) * (n - 1))));
+      const m = ms[i];
+      cross.setAttribute('x1', x(i)); cross.setAttribute('x2', x(i)); cross.setAttribute('visibility', 'visible');
+      dot.setAttribute('cx', x(i)); dot.setAttribute('cy', y(m.streak)); dot.setAttribute('visibility', 'visible');
+      const b = bossOf(m.boss), c = charOf(m.character);
+      tip.replaceChildren(
+        el('div', {}, [el('span', { class: 'muted', text: `No.${i + 1}　#${m.stream ?? '-'}　` }), el('span', { class: m.result, text: m.result === 'win' ? 'WIN' : 'LOSE' })]),
+        el('div', { text: `連勝 ${m.streak}　${b ? b.name : '-'}${m.everdark ? '（常夜）' : ''}　${c ? c.name : m.character}` }),
+      );
+      tip.hidden = false;
+      const left = (x(i) / W) * r.width;
+      tip.style.left = `${Math.min(Math.max(left - tip.offsetWidth / 2, 4), r.width - tip.offsetWidth - 4)}px`;
+    };
+    svg.addEventListener('pointermove', show);
+    svg.addEventListener('pointerdown', show);
+    svg.addEventListener('pointerleave', () => { tip.hidden = true; cross.setAttribute('visibility', 'hidden'); dot.setAttribute('visibility', 'hidden'); });
+  }
+
+  function render() {
+    const list = filtered();
+    renderFilterTiles(list);
+    renderBoss(list);
+    renderMatches(list);
+  }
+
+  (async () => {
+    data = await (await fetch('data.json', { cache: 'no-cache' })).json();
+    const d = new Date(data.updated);
+    $('updated').textContent = `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()} 更新`;
+    // 絞り込みには記録のあるキャラだけ出す
+    const used = new Set(data.matches.map((m) => m.character));
+    // キャラの絞り込みボタン（遺物一覧ページと同じ横並びの丸ボタン）
+    const f = $('filter-char');
+    const btn = (id, name, icon) => {
+      const b = el('button', { type: 'button', class: 'char-btn', 'aria-pressed': String(id === selChar) }, [
+        icon ? el('img', { src: icon, alt: '' }) : null,
+        el('span', { text: name }),
+      ]);
+      b.addEventListener('click', () => {
+        selChar = id;
+        for (const x of f.children) x.setAttribute('aria-pressed', String(x === b));
+        render();
+      });
+      return b;
+    };
+    f.append(btn('', 'すべて', ''),
+      ...data.characters.filter((c) => used.has(c.id)).map((c) => btn(c.id, c.name, c.icon)));
+    render();
+    // 絞り込みに関係しないものは最初に1回だけ（グラフは幅が変わったら描き直す）
+    renderTiles();
+    renderStreams(data.matches);
+    renderChart();
+    renderRuns();
+    renderChars();
+    let t;
+    window.addEventListener('resize', () => { clearTimeout(t); t = setTimeout(renderChart, 150); });
+  })();
+</script>
+</body>
+</html>
