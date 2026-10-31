@@ -3,7 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ナイトレイン戦績</title>
+<title>深度4野良戦績</title>
+<link rel="icon" href="favicon.png">
+<link rel="apple-touch-icon" href="favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=LINE+Seed+JP:wght@400;700&display=swap" rel="stylesheet">
 <style>
   /* 色は配信画面（project/obs_overlay/public/theme.css）の狼の配色。シアン＝勝ち／赤＝負け／常夜はアイコンを紫に染める */
   @font-face { font-family: "Teko"; font-weight: 600; font-display: swap; src: url("fonts/Teko-600.woff2") format("woff2"); }
@@ -22,12 +27,14 @@
     padding: 16px;
     background: var(--bg);
     color: var(--text);
-    font-family: "Yu Gothic UI", "Meiryo", "Hiragino Sans", sans-serif;
+    font-family: "LINE Seed JP", "Hiragino Sans", "Yu Gothic", "Meiryo", system-ui, sans-serif; /* 遺物一覧と同じ */
     font-size: 14px;
   }
   .wrap { max-width: 1000px; margin: 0 auto; }
-  h1 { font-size: 20px; margin: 0 0 4px; }
-  .updated { color: var(--sub); font-size: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--cyan); margin-bottom: 12px; }
+  /* ヘッダーは遺物一覧（style.css の .site-header まわり）と同じ寸法 */
+  .site-header { padding: 0 0 0.6rem; border-bottom: 1px solid var(--cyan); }
+  h1 { font-size: 1.6rem; margin: 0; letter-spacing: 0.05em; }
+  .updated { color: var(--sub); font-size: 12px; text-align: right; margin: 6px 0 12px; }
   h2 { font-size: 15px; margin: 28px 0 10px; color: var(--cyan); font-weight: 600; letter-spacing: .05em; }
   .bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
   .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; margin-top: 12px; }
@@ -106,6 +113,19 @@
   .nav a:active { transform: translateY(2px); box-shadow: none; }
   /* 絞り込みの区画：上との境目に線を引く */
   .note.below { margin: 8px 0 0; }
+  /* タイトルの右にXとYouTubeの丸いリンク（遺物一覧の .social-links と同じ形） */
+  .header-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+  .social-links { display: flex; gap: 0.7rem; padding-top: 0.3rem; }
+  /* タイトルの左のアイコン（遺物一覧の .site-icon と同じ44px） */
+  .title-row { display: flex; align-items: center; gap: 0.7rem; }
+  .site-icon { width: 44px; height: 44px; border-radius: 50%; }
+  .social-links a {
+    display: flex; align-items: center; justify-content: center;
+    width: 36px; height: 36px; border-radius: 50%; color: var(--sub); border: 1px solid var(--line);
+  }
+  .social-links a:hover { color: var(--cyan); border-color: var(--cyan); }
+  /* 遺物一覧ページへのリンク（遺物一覧側にも戦績ページへのリンクがある） */
+  .social-links a.page-link { width: auto; padding: 0 0.9rem; border-radius: 999px; font-size: 0.8rem; font-weight: 700; color: var(--text); text-decoration: none; }
   /* 絞り込みの区画のあとは、区画の外だと分かるように上にも線を引く */
   h2.after-filter { margin-top: 36px; padding-top: 16px; border-top: 1px solid var(--cyan); }
   .filter { margin-top: 36px; padding-top: 16px; border-top: 1px solid var(--cyan); scroll-margin-top: 12px; }
@@ -143,7 +163,28 @@
 </head>
 <body>
 <div class="wrap">
-  <h1>ナイトレイン戦績（深度4野良）</h1>
+  <header class="site-header">
+  <div class="header-row">
+    <div class="title-row">
+      <img src="favicon.png" alt="" class="site-icon">
+      <h1>深度4野良戦績</h1>
+    </div>
+    <!-- 遺物一覧・キャラランダムツールと同じXとYouTubeのリンク -->
+    <div class="social-links">
+      <a class="page-link" href="https://esusan.github.io/nightreign-relics/">遺物一覧</a>
+      <a href="https://x.com/u_se_nr" target="_blank" rel="noopener noreferrer" aria-label="X" title="X">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
+          <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+        </svg>
+      </a>
+      <a href="https://www.youtube.com/@%E3%81%88%E3%81%99%E3%81%95%E3%82%93-0" target="_blank" rel="noopener noreferrer" aria-label="YouTube" title="YouTube">
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true">
+          <path d="M23.5 6.2a3.02 3.02 0 0 0-2.13-2.14C19.51 3.5 12 3.5 12 3.5s-7.51 0-9.37.56A3.02 3.02 0 0 0 .5 6.2 31.6 31.6 0 0 0 0 12a31.6 31.6 0 0 0 .5 5.8 3.02 3.02 0 0 0 2.13 2.14C4.49 20.5 12 20.5 12 20.5s7.51 0 9.37-.56a3.02 3.02 0 0 0 2.13-2.14A31.6 31.6 0 0 0 24 12a31.6 31.6 0 0 0-.5-5.8ZM9.6 15.6V8.4l6.4 3.6z"/>
+        </svg>
+      </a>
+    </div>
+  </div>
+  </header>
   <div class="updated" id="updated"></div>
   <nav class="nav" aria-label="ページ内の移動">
     <a href="#sec-chart">連勝の推移</a>
