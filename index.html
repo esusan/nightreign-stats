@@ -12,6 +12,8 @@
 <style>
   /* 色は配信画面（project/obs_overlay/public/theme.css）の狼の配色。シアン＝勝ち／赤＝負け／常夜はアイコンを紫に染める */
   @font-face { font-family: "Teko"; font-weight: 600; font-display: swap; src: url("fonts/Teko-600.woff2") format("woff2"); }
+  /* 数字だけ等幅にする（LINE Seed JPは数字の幅がそろわず、表の数字がガタつくため）。対象は 0-9 と # % . だけで、日本語・英字はLINE Seed JPのまま */
+  @font-face { font-family: "Num"; font-weight: 400 700; font-display: swap; src: url("fonts/RobotoMono-var.woff2") format("woff2"); unicode-range: U+0023, U+0025, U+002E, U+0030-0039; }
   :root {
     --bg: rgb(6, 6, 8);
     --panel: rgb(16, 17, 20);
@@ -27,7 +29,7 @@
     padding: 16px;
     background: var(--bg);
     color: var(--text);
-    font-family: "LINE Seed JP", "Hiragino Sans", "Yu Gothic", "Meiryo", system-ui, sans-serif; /* 遺物一覧と同じ */
+    font-family: "Num", "LINE Seed JP", "Hiragino Sans", "Yu Gothic", "Meiryo", system-ui, sans-serif; /* 遺物一覧と同じ */
     font-size: 14px;
   }
   .wrap { max-width: 1000px; margin: 0 auto; }
