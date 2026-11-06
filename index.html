@@ -82,6 +82,9 @@
     border-style: solid; border-width: 5px 0 5px 8px; border-color: transparent transparent transparent #f0e8e8;
   }
   a.play:hover { background: #b84444; }
+  /* 試合の開始位置（再生ボタンの右に時刻のテキストリンク） */
+  a.ts { margin-left: 6px; vertical-align: middle; color: var(--sub); text-decoration: none; }
+  a.ts:hover { color: var(--cyan); text-decoration: underline; }
   .tag { display: inline-block; font-size: 11px; line-height: 1; padding: 3px 5px; border-radius: 4px; margin-left: 6px; vertical-align: middle; border: 1px solid; }
   .tag.d5 { color: var(--sub); }
   tr.lose-row td { background: color-mix(in srgb, var(--lose) 8%, transparent); }
@@ -231,13 +234,23 @@
   const charOf = (id) => data.characters.find((c) => c.id === id);
   const pct = (a, b) => (b ? `${Math.round((a / b) * 100)}%` : '-');
 
-  // 配信回：アーカイブのURLがあれば横に再生ボタンを付ける
-  function streamCell(n, cls = '') {
+  // 配信回：アーカイブのURLがあれば横に再生ボタンを付ける。t（秒）があればその試合の開始位置から開き、右に時刻のリンクも付ける
+  function streamCell(n, cls = '', t = null) {
     if (n == null || typeof n !== 'number') return el('td', { class: cls, text: n ?? '-' });
-    const url = data.streams?.[n];
+    let url = data.streams?.[n];
+    let label = `#${n} のアーカイブを開く`;
+    let ts = null;
+    if (url && t != null) {
+      url += `${url.includes('?') ? '&' : '?'}t=${t}s`;
+      const h = Math.floor(t / 3600), m = Math.floor(t / 60) % 60, s = t % 60;
+      ts = `${h ? `${h}:${String(m).padStart(2, '0')}` : m}:${String(s).padStart(2, '0')}`;
+      label = `#${n} のアーカイブを ${ts} から開く`;
+    }
+    const link = (attrs) => el('a', { href: url, target: '_blank', rel: 'noopener', title: label, ...attrs });
     return el('td', { class: cls }, [
       el('span', { class: 'sn', text: `#${n}` }),
-      url ? el('a', { class: 'play', href: url, target: '_blank', rel: 'noopener', title: `#${n} のアーカイブを開く`, 'aria-label': `#${n} のアーカイブを開く` }) : null,
+      url ? link({ class: 'play', 'aria-label': label }) : null,
+      ts ? link({ class: 'ts', text: ts }) : null,
     ]);
   }
 
@@ -387,7 +400,7 @@
       el('td', {}, bossCell(m)),
       el('td', {}, charCell(m.character)),
       el('td', { class: m.result, text: m.result === 'win' ? 'WIN' : 'LOSE' }),
-      streamCell(m.stream),
+      streamCell(m.stream, '', m.t),
     ]));
     $('match-table').replaceChildren(el('thead', {}, head), el('tbody', {}, rows));
   }
